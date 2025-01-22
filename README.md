@@ -1,11 +1,24 @@
-# @langchain/langgraph-checkpoint-postgres
+# @steerprotocol/langgraph-checkpoint-pglite
 
-Implementation of a [LangGraph.js](https://github.com/langchain-ai/langgraphjs) CheckpointSaver that uses a Postgres DB.
+Implementation of a [LangGraph.js](https://github.com/langchain-ai/langgraphjs) CheckpointSaver that uses PGlite for local, in-memory, or browser-based PostgreSQL storage.
+
+## Features
+
+- 🚀 Works in Node.js, Bun, Deno, and browsers
+- 💾 Supports in-memory, file system, and IndexedDB storage
+- 🔄 No external PostgreSQL server required
+- 🌐 Perfect for local development and browser-based applications
+
+## Installation
+
+```bash
+npm install @steerprotocol/langgraph-checkpoint-pglite
+```
 
 ## Usage
 
 ```ts
-import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
+import { PostgresSaver } from "@steerprotocol/langgraph-checkpoint-pglite";
 
 const writeConfig = {
   configurable: {
@@ -19,7 +32,14 @@ const readConfig = {
   }
 };
 
-const checkpointer = PostgresSaver.fromConnString("postgresql://...");
+// Create an in-memory database
+const checkpointer = PostgresSaver.fromConnString("memory://");
+
+// Or use file system storage (Node.js/Bun)
+// const checkpointer = PostgresSaver.fromConnString("file://./my-database");
+
+// Or use IndexedDB storage (Browser)
+// const checkpointer = PostgresSaver.fromConnString("idb://my-database");
 
 // You must call .setup() the first time you use the checkpointer:
 await checkpointer.setup();
@@ -60,20 +80,38 @@ await checkpointer.get(readConfig);
 for await (const checkpoint of checkpointer.list(readConfig)) {
   console.log(checkpoint);
 }
+
+// Don't forget to close the connection when done
+await checkpointer.end();
+```
+
+## Storage Options
+
+PGlite supports multiple storage backends:
+
+### In-Memory (Ephemeral)
+```ts
+const checkpointer = PostgresSaver.fromConnString("memory://my-db");
+```
+
+### File System (Node.js/Bun)
+```ts
+const checkpointer = PostgresSaver.fromConnString("file://./path/to/data");
+```
+
+### IndexedDB (Browser)
+```ts
+const checkpointer = PostgresSaver.fromConnString("idb://my-database");
 ```
 
 ## Testing
 
-Spin up testing PostgreSQL
+The tests use in-memory databases, so no setup is required. Just run:
 
 ```bash
-docker-compose up -d && docker-compose logs -f
+npm test
 ```
 
-Then use the following connection string to initialize your checkpointer:
+## License
 
-```ts
-const testCheckpointer = PostgresSaver.fromConnString(
-  "postgresql://user:password@localhost:5434/testdb"
-);
-```
+MIT

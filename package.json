@@ -10,7 +10,7 @@
   "types": "./index.d.ts",
   "repository": {
     "type": "git",
-    "url": "git@github.com:langchain-ai/langgraphjs.git"
+    "url": "git@github.com:SteerProtocol/langgraph-checkpoint-pglite.git"
   },
   "scripts": {
     "build": "yarn turbo:command build:internal --filter=@langchain/langgraph-checkpoint-postgres",
@@ -31,16 +31,17 @@
   "author": "LangChain",
   "license": "MIT",
   "dependencies": {
-    "@electric-sql/pglite": "^0.1.14"
+    "@electric-sql/pglite": "^0.2.16"
   },
   "peerDependencies": {
     "@langchain/core": ">=0.2.31 <0.4.0",
-    "@langchain/langgraph-checkpoint": "~0.0.6"
+    "@langchain/langgraph-checkpoint": "~0.0.13"
   },
   "devDependencies": {
     "@jest/globals": "^29.5.0",
-    "@langchain/langgraph-checkpoint": "workspace:*",
-    "@langchain/scripts": ">=0.1.2 <0.2.0",
+    "@langchain/core": "^0.2.31",
+    "@langchain/langgraph-checkpoint": "~0.0.13",
+    "@langchain/scripts": "0.1.3",
     "@swc/core": "^1.3.90",
     "@swc/jest": "^0.2.29",
     "@tsconfig/recommended": "^1.0.3",
