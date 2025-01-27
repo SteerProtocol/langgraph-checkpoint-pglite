@@ -19,6 +19,12 @@ import {
   UPSERT_CHECKPOINT_BLOBS_SQL,
   UPSERT_CHECKPOINT_WRITES_SQL,
   UPSERT_CHECKPOINTS_SQL,
+  DELETE_CHECKPOINT_WRITES_SQL,
+  DELETE_CHECKPOINT_BLOBS_SQL,
+  DELETE_CHECKPOINT_SQL,
+  DELETE_THREAD_WRITES_SQL,
+  DELETE_THREAD_BLOBS_SQL,
+  DELETE_THREAD_CHECKPOINTS_SQL,
 } from "./sql.js";
 
 interface CheckpointRow {
@@ -41,10 +47,10 @@ interface CheckpointRow {
  * @example
  * ```
  * import { ChatOpenAI } from "@langchain/openai";
- * import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
+ * import { PgLiteSaver } from "@langchain/langgraph-checkpoint-postgres";
  * import { createReactAgent } from "@langchain/langgraph/prebuilt";
  *
- * const checkpointer = PostgresSaver.fromConnString(
+ * const checkpointer = PgLiteSaver.fromConnString(
  *   "postgresql://user:password@localhost:5432/db"
  * );
  *
@@ -68,24 +74,28 @@ interface CheckpointRow {
  * }, config);
  * ```
  */
-export class PostgresSaver extends BaseCheckpointSaver {
+export class PgLiteSaver extends BaseCheckpointSaver {
   private db: PGlite;
 
   protected isSetup: boolean;
 
-  constructor(dbPath: string, serde?: SerializerProtocol) {
+  constructor(dbPathOrInstance: string | PGlite, serde?: SerializerProtocol) {
     super(serde);
-    this.db = new PGlite(dbPath);
+    this.db = typeof dbPathOrInstance === 'string' ? new PGlite(dbPathOrInstance) : dbPathOrInstance;
     this.isSetup = false;
   }
 
-  static fromConnString(connString: string): PostgresSaver {
+  static fromConnString(connString: string): PgLiteSaver {
     // For PGlite, we'll use the path portion of the connection string
     // as the database path, or memory:// for in-memory if no path
     const dbPath = connString.includes('://') ? 
       connString.split('://')[1] || 'memory://' : 
       'memory://';
-    return new PostgresSaver(dbPath);
+    return new PgLiteSaver(dbPath);
+  }
+
+  static fromInstance(db: PGlite, serde?: SerializerProtocol): PgLiteSaver {
+    return new PgLiteSaver(db, serde);
   }
 
   /**
@@ -514,5 +524,89 @@ export class PostgresSaver extends BaseCheckpointSaver {
 
   async end() {
     await this.db.close();
+  }
+
+  /**
+   * Delete a checkpoint and its associated data from the database.
+   * 
+   * This method deletes a checkpoint and its associated data (writes and orphaned blobs)
+   * from the database. The deletion is performed in a transaction to ensure consistency.
+   * @param config Configuration identifying the checkpoint to delete.
+   */
+  async delete(config: RunnableConfig): Promise<void> {
+    if (config.configurable === undefined) {
+      throw new Error(`Missing "configurable" field in "config" param`);
+    }
+    const {
+      thread_id,
+      checkpoint_ns = "",
+      checkpoint_id,
+    } = config.configurable;
+
+    if (!checkpoint_id) {
+      throw new Error(`Missing "checkpoint_id" field in "config.configurable" param`);
+    }
+
+    try {
+      await this.db.query("BEGIN");
+      
+      // Delete checkpoint writes first
+      await this.db.query(DELETE_CHECKPOINT_WRITES_SQL, [
+        thread_id,
+        checkpoint_ns,
+        checkpoint_id,
+      ]);
+
+      // Delete orphaned blobs
+      await this.db.query(DELETE_CHECKPOINT_BLOBS_SQL, [
+        thread_id,
+        checkpoint_ns,
+        checkpoint_id,
+      ]);
+
+      // Delete the checkpoint itself
+      await this.db.query(DELETE_CHECKPOINT_SQL, [
+        thread_id,
+        checkpoint_ns,
+        checkpoint_id,
+      ]);
+
+      await this.db.query("COMMIT");
+    } catch (error) {
+      await this.db.query("ROLLBACK");
+      throw error;
+    }
+  }
+
+  /**
+   * Delete all checkpoints and associated data for a thread.
+   * 
+   * This method deletes all checkpoints, writes, and blobs associated with a thread.
+   * The deletion is performed in a transaction to ensure consistency.
+   * @param threadId The ID of the thread to delete
+   * @param checkpointNs Optional namespace for the checkpoints (defaults to empty string)
+   */
+  async deleteThread(threadId: string, checkpointNs: string = ""): Promise<void> {
+    if (!threadId) {
+      throw new Error("threadId is required");
+    }
+
+    try {
+      await this.db.query("BEGIN");
+      
+      // Delete all checkpoint writes for the thread
+      await this.db.query(DELETE_THREAD_WRITES_SQL, [threadId, checkpointNs]);
+
+      // Delete all blobs for the thread
+      await this.db.query(DELETE_THREAD_BLOBS_SQL, [threadId, checkpointNs]);
+
+      // Delete all checkpoints for the thread
+      await this.db.query(DELETE_THREAD_CHECKPOINTS_SQL, [threadId, checkpointNs]);
+
+      await this.db.query("COMMIT");
+    } catch (error) {
+      await this.db.query("ROLLBACK");
+      throw error;
+    }
   }
 }

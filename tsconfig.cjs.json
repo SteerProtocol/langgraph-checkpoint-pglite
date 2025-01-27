@@ -1,8 +1,9 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "module": "commonjs",
-    "declaration": false
+    "outDir": "./dist-cjs",
+    "module": "CommonJS",
+    "moduleResolution": "Node"
   },
   "exclude": ["node_modules", "dist", "docs", "**/tests"]
 }
